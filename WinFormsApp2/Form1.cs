@@ -12,8 +12,12 @@ namespace WinFormsApp2
 {
     public partial class Form1 : Form
     {
-        MediaBlocksPipeline _pipeline1 = new MediaBlocksPipeline();
-        MediaBlocksPipeline _pipeline2 = new MediaBlocksPipeline();
+        MediaBlocksPipeline _pipeline1Sink = new MediaBlocksPipeline();
+        MediaBlocksPipeline _pipeline2Sink = new MediaBlocksPipeline();
+
+        MediaBlocksPipeline _pipeline1Source = new MediaBlocksPipeline();
+        MediaBlocksPipeline _pipeline2Source = new MediaBlocksPipeline();
+
         public Form1()
         {
             InitializeComponent();
@@ -22,50 +26,44 @@ namespace WinFormsApp2
 
         public async void Start()
         {
-            
             var videoTest1 =
                 new VirtualVideoSourceBlock(new VirtualVideoSourceSettings(1920, 1080, VideoFrameRate.FPS_30));
             var bridgeSink = new BridgeVideoSinkBlock(new BridgeVideoSinkSettings("pgm"));
-            _pipeline1.AddBlock(bridgeSink);
-            _pipeline1.Connect(videoTest1.Output, bridgeSink.Input);
-            await _pipeline1.StartAsync();
+            _pipeline1Sink.AddBlock(bridgeSink);
+            _pipeline1Sink.Connect(videoTest1.Output, bridgeSink.Input);
+            await _pipeline1Sink.StartAsync();
 
             var videoTest2 =
-                new VirtualVideoSourceBlock(new VirtualVideoSourceSettings(1920, 1080, VideoFrameRate.FPS_30){Pattern = VirtualVideoSourcePattern.Circular});
+                new VirtualVideoSourceBlock(new VirtualVideoSourceSettings(1920, 1080, VideoFrameRate.FPS_30) { Pattern = VirtualVideoSourcePattern.Pinwheel });
             var bridgeSink2 = new BridgeVideoSinkBlock(new BridgeVideoSinkSettings("pvw"));
-            _pipeline2.AddBlock(bridgeSink2);
-            _pipeline2.Connect(videoTest2.Output, bridgeSink2.Input);
-            await _pipeline2.StartAsync();
-
-
-            
-
-
-
-            var pgmPipeline = new MediaBlocksPipeline();
+            _pipeline2Sink.AddBlock(bridgeSink2);
+            _pipeline2Sink.Connect(videoTest2.Output, bridgeSink2.Input);
+            await _pipeline2Sink.StartAsync();
 
             var bridgeSourcePgm = new BridgeVideoSourceBlock(new BridgeVideoSourceSettings("pgm"));
-            var videoRender = new VideoRendererBlock(pgmPipeline, videoView1);
-            
-            pgmPipeline.Connect(bridgeSourcePgm.Output, videoRender.Input);
-     
-            await pgmPipeline.StartAsync();
-
-            var pvwPipeline = new MediaBlocksPipeline();
+            var videoRender = new VideoRendererBlock(_pipeline1Source, videoView1);
+            _pipeline1Source.Connect(bridgeSourcePgm.Output, videoRender.Input);
+            await _pipeline1Source.StartAsync();
 
             var bridgeSourcePvw = new BridgeVideoSourceBlock(new BridgeVideoSourceSettings("pvw"));
-            var videoRenderPvw = new VideoRendererBlock(pvwPipeline, videoView2);
-            pvwPipeline.Connect(bridgeSourcePvw.Output, videoRenderPvw.Input);
-            await pvwPipeline.StartAsync();
+            var videoRenderPvw = new VideoRendererBlock(_pipeline2Source, videoView2);
+            _pipeline2Source.Connect(bridgeSourcePvw.Output, videoRenderPvw.Input);
+            await _pipeline2Source.StartAsync();
         }
 
         private void button1_Click(object sender, EventArgs e)
         {
-            var pgmSink = _pipeline1.GetBlock(MediaBlockType.BridgeVideoSink) as BridgeVideoSinkBlock;
-            var pvwSink = _pipeline2.GetBlock(MediaBlockType.BridgeVideoSink) as BridgeVideoSinkBlock;
+            var source1 = _pipeline1Source.GetBlock(MediaBlockType.BridgeVideoSource) as BridgeVideoSourceBlock;
+            var source2 = _pipeline2Source.GetBlock(MediaBlockType.BridgeVideoSource) as BridgeVideoSourceBlock;
 
-            pgmSink?.UpdateChannel("pvw");
-            pvwSink?.UpdateChannel("pgm");
+            _pipeline1Source.GetPipelineContext().Pipeline.SetState(Gst.State.Null);
+            _pipeline2Source.GetPipelineContext().Pipeline.SetState(Gst.State.Null);
+
+            source1?.UpdateChannel("pvw");
+            source2?.UpdateChannel("pgm");
+
+            _pipeline1Source.GetPipelineContext().Pipeline.SetState(Gst.State.Playing);
+            _pipeline2Source.GetPipelineContext().Pipeline.SetState(Gst.State.Playing);
         }
     }
 }
